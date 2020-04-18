@@ -1,63 +1,112 @@
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <netdb.h>
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
 #include <unistd.h>
+#include <fcntl.h>
+#include <netinet/tcp.h>
+#include <sys/socket.h>
+#include <sys/types.h>
+#include <netinet/in.h>
+#include <netdb.h>
+
 #include "err.h"
 
-#define BUFFER_SIZE 100000
+#define BUFFER_SIZE 1000
 
-/* Funkcja wyciąga nr portu z pierwszego argumentu */
-void findPortNumber(char *argument, char *port) {
+/* Funkcja dzieli pierwszy argument na adres + port */
+void decomposeFirstArgument(char *connectionAddress, char **port) {
    int i = 0;
-   while (argument[i] != ':') {
+   while (connectionAddress[i] != ':') {
       i++;
    }
-   i++;
-   memcpy(port, argument+i, sizeof(char) * (strlen(argument) - i + 1));
+   connectionAddress[i] = '\0';
+   // dzielimy 'connectionAddress' na adres właściwy i port
+   *port = connectionAddress + i + 1;
    return;
 }
 
-int main(int argc, char *argv[]) {
-   int sock, err;
-   struct addrinfo addr_hints;
-   struct addrinfo *addr_result;
+/* Funkcja tworzy wiadomość GET HTTP */
+void createMessage(char *connectionAddress, char message[]) {
+   char *part1 = "GET / HTTP/1.1\r\nHost: ";
+   char *part2 = "\r\nConnection: close\r\n\r\n";
 
-   // parsowanie parametrów
-   if (argc != 4) {
-      fatal("improper nummber of arguments");
-   }
+   strcat(message, part1);
+   strcat(message, connectionAddress);
+   strcat(message, part2);
+   return;
+}
+
+/* Funkcja tworzy gniazdo (socket) i nawiązuje połączenie z serwerem */
+int socket_connect(char *host, in_port_t port){
+	struct hostent *hp;
+	struct sockaddr_in addr;
+	int on = 1, sock;
+
+   // znajdujemy hosta po nazwie
+	if ((hp = gethostbyname(host)) == NULL) {
+		syserr("gethostbyname");
+	}
+   // wypełniamy odpowiednie pola w strukturze
+	bcopy(hp->h_addr, &addr.sin_addr, hp->h_length);
+	addr.sin_port = htons(port);
+	addr.sin_family = AF_INET;
+   // tworzymy gniazdo
+	sock = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP);
+	setsockopt(sock, IPPROTO_TCP, TCP_NODELAY, (const char *)&on, sizeof(int));
+
+   // jeśli sock = -1, coś posżło nie tak, więc kończymy program z kodem 1
+	if (sock == -1) {
+		syserr("setsockopt");
+	}
+
+   // connect() = -1 ---> błąd
+	if (connect(sock, (struct sockaddr *)&addr, sizeof(struct sockaddr_in)) == -1) {
+		syserr("connect");
+	}
+
+	return sock;
+}
+
+int main(int argc, char *argv[]){
+	int fd;
+	char buffer[BUFFER_SIZE];
+
+   // liczba argumentów musi być równa 4 (włącznie z nazwą programu)
+	if (argc != 4){
+		fatal("improper number of arguments");
+	}
 
    char *connectionAddress = argv[1];   // pierwszy argument
    char *cookiesFile = argv[2];          // drugi argument
    char *testAddress = argv[3];         // trzeci argument
-   char port[BUFFER_SIZE];
-   findPortNumber(connectionAddress, port);
+   char *port;
+   decomposeFirstArgument(connectionAddress, &port);
 
-   // zapisanie danych z parametrów w struct addrinfo
-   memset(&addr_hints, 0, sizeof(struct addrinfo));
-   addr_hints.ai_family = AF_INET; // IPv4
-   addr_hints.ai_socktype = SOCK_STREAM;
-   addr_hints.ai_protocol = IPPROTO_TCP;
-   err = getaddrinfo(connectionAddress, port, &addr_hints, &addr_result);
-   if (err == EAI_SYSTEM) { // systemowy error
-     syserr("getaddrinfo: %s", gai_strerror(err));
-   }
-   else if (err != 0) { // inny błąd
-     fatal("getaddrinfo: %s", gai_strerror(err));
-   }
+   // tworzymy połączenie
+	fd = socket_connect(connectionAddress, atoi(port));
+   char message[BUFFER_SIZE] = "";
+   // tworzymy wiadomość http get
+   createMessage(connectionAddress, message);
 
-   // inicjalizacja socket
-   sock = socket(addr_result->ai_family, addr_result->ai_socktype, addr_result->ai_protocol);
-   if (sock < 0) {
-      syserr("socket");
+   // wysyłamy wiadomość
+   int message_length = strlen(message);
+	if (write(fd, message, message_length) != message_length) {
+      syserr("write");
    }
+	bzero(buffer, BUFFER_SIZE);
 
-   // nawiązanie połączenia z serwerem
-   if (connect(sock, addr_result->ai_addr, addr_result->ai_addrlen) < 0) {
-      syserr("connect");
-   }
+   // czytamy odpowiedź i drukujemy na stdout
+	while (message_length = read(fd, buffer, BUFFER_SIZE - 1) != 0) {
+      if (message_length < 0) {
+         syserr("read");
+      }
+		printf("%s", buffer);
+		bzero(buffer, BUFFER_SIZE);
+	}
 
-   return 0;
+   // kończymy połaczenie
+	shutdown(fd, SHUT_RDWR);
+	close(fd);
+
+	return 0;
 }
