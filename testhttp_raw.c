@@ -38,43 +38,43 @@ void createMessage(char *connectionAddress, char message[]) {
 
 /* Funkcja tworzy gniazdo (socket) i nawiązuje połączenie z serwerem */
 int socket_connect(char *host, in_port_t port){
-	struct hostent *hp;
-	struct sockaddr_in addr;
-	int on = 1, sock;
+   struct hostent *hp;
+   struct sockaddr_in addr;
+   int on = 1, sock;
 
    // znajdujemy hosta po nazwie
-	if ((hp = gethostbyname(host)) == NULL) {
-		syserr("gethostbyname");
-	}
+   if ((hp = gethostbyname(host)) == NULL) {
+      syserr("gethostbyname");
+   }
    // wypełniamy odpowiednie pola w strukturze
-	bcopy(hp->h_addr, &addr.sin_addr, hp->h_length);
-	addr.sin_port = htons(port);
-	addr.sin_family = AF_INET;
+   bcopy(hp->h_addr, &addr.sin_addr, hp->h_length);
+   addr.sin_port = htons(port);
+   addr.sin_family = AF_INET;
    // tworzymy gniazdo
-	sock = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP);
-	setsockopt(sock, IPPROTO_TCP, TCP_NODELAY, (const char *)&on, sizeof(int));
+   sock = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP);
+   setsockopt(sock, IPPROTO_TCP, TCP_NODELAY, (const char *)&on, sizeof(int));
 
    // jeśli sock = -1, coś posżło nie tak, więc kończymy program z kodem 1
-	if (sock == -1) {
-		syserr("setsockopt");
-	}
+   if (sock == -1) {
+      syserr("setsockopt");
+   }
 
    // connect() = -1 ---> błąd
-	if (connect(sock, (struct sockaddr *)&addr, sizeof(struct sockaddr_in)) == -1) {
-		syserr("connect");
-	}
+   if (connect(sock, (struct sockaddr *)&addr, sizeof(struct sockaddr_in)) == -1) {
+      syserr("connect");
+   }
 
-	return sock;
+   return sock;
 }
 
 int main(int argc, char *argv[]){
-	int fd;
-	char buffer[BUFFER_SIZE];
+   int fd;
+   char buffer[BUFFER_SIZE];
 
    // liczba argumentów musi być równa 4 (włącznie z nazwą programu)
-	if (argc != 4){
-		fatal("improper number of arguments");
-	}
+   if (argc != 4){
+      fatal("improper number of arguments");
+   }
 
    char *connectionAddress = argv[1];   // pierwszy argument
    char *cookiesFile = argv[2];          // drugi argument
@@ -83,30 +83,30 @@ int main(int argc, char *argv[]){
    decomposeFirstArgument(connectionAddress, &port);
 
    // tworzymy połączenie
-	fd = socket_connect(connectionAddress, atoi(port));
+   fd = socket_connect(connectionAddress, atoi(port));
    char message[BUFFER_SIZE] = "";
    // tworzymy wiadomość http get
    createMessage(connectionAddress, message);
 
    // wysyłamy wiadomość
    int message_length = strlen(message);
-	if (write(fd, message, message_length) != message_length) {
+   if (write(fd, message, message_length) != message_length) {
       syserr("write");
    }
-	bzero(buffer, BUFFER_SIZE);
+   bzero(buffer, BUFFER_SIZE);
 
    // czytamy odpowiedź i drukujemy na stdout
-	while (message_length = read(fd, buffer, BUFFER_SIZE - 1) != 0) {
+   while (message_length = read(fd, buffer, BUFFER_SIZE - 1) != 0) {
       if (message_length < 0) {
          syserr("read");
       }
-		printf("%s", buffer);
-		bzero(buffer, BUFFER_SIZE);
-	}
+      printf("%s", buffer);
+      bzero(buffer, BUFFER_SIZE);
+   }
 
    // kończymy połaczenie
-	shutdown(fd, SHUT_RDWR);
-	close(fd);
+   shutdown(fd, SHUT_RDWR);
+   close(fd);
 
-	return 0;
+   return 0;
 }
