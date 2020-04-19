@@ -168,8 +168,8 @@ int main(int argc, char *argv[]){
 	char buffer[BUFFER_SIZE];
 
    // liczba argumentów musi być równa 4 (włącznie z nazwą programu)
-	if (argc != 4){
-		fatal("improper number of arguments");
+   if (argc != 4){
+      fatal("improper number of arguments");
 	}
 
    char *connectionAddress = argv[1];   // pierwszy argument
@@ -179,21 +179,21 @@ int main(int argc, char *argv[]){
    decomposeFirstArgument(connectionAddress, &port);
 
    // tworzymy połączenie
-	fd = socket_connect(connectionAddress, atoi(port));
+   fd = socket_connect(connectionAddress, atoi(port));
    char message[BUFFER_SIZE] = "";
    // tworzymy wiadomość http get
    createMessage(connectionAddress, message, cookiesFile);
    // wysyłamy wiadomość
    int message_length = strlen(message);
-	if (write(fd, message, message_length) != message_length) {
+   if (write(fd, message, message_length) != message_length) {
       syserr("write");
    }
-	bzero(buffer, BUFFER_SIZE);
+   bzero(buffer, BUFFER_SIZE);
    int numberOfReads = 0;
    int lengthOfResource = 0;
 
    // czytamy odpowiedź i drukujemy na stdout
-	while (message_length = read(fd, buffer, BUFFER_SIZE - 1) != 0) {
+   while (message_length = read(fd, buffer, BUFFER_SIZE - 1) != 0) {
       if (message_length < 0) {
          syserr("read");
       }
@@ -208,13 +208,13 @@ int main(int argc, char *argv[]){
             // TO DO
          }
       }
-		printf("%s", buffer);
-		bzero(buffer, BUFFER_SIZE);
-	}
+      printf("%s", buffer);
+      bzero(buffer, BUFFER_SIZE);
+   }
 
    // kończymy połaczenie
-	shutdown(fd, SHUT_RDWR);
-	close(fd);
-
-	return 0;
+   shutdown(fd, SHUT_RDWR);
+   close(fd);
+   
+   return 0;
 }
