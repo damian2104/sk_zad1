@@ -139,38 +139,38 @@ int socket_connect(char *host, in_port_t port){
 	int on = 1, sock;
 
    // znajdujemy hosta po nazwie
-	if ((hp = gethostbyname(host)) == NULL) {
-		syserr("gethostbyname");
-	}
+   if ((hp = gethostbyname(host)) == NULL) {
+      syserr("gethostbyname");
+   }
    // wypełniamy odpowiednie pola w strukturze
-	bcopy(hp->h_addr, &addr.sin_addr, hp->h_length);
-	addr.sin_port = htons(port);
-	addr.sin_family = AF_INET;
+   bcopy(hp->h_addr, &addr.sin_addr, hp->h_length);
+   addr.sin_port = htons(port);
+   addr.sin_family = AF_INET;
    // tworzymy gniazdo
-	sock = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP);
-	setsockopt(sock, IPPROTO_TCP, TCP_NODELAY, (const char *)&on, sizeof(int));
+   sock = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP);
+   setsockopt(sock, IPPROTO_TCP, TCP_NODELAY, (const char *)&on, sizeof(int));
 
    // jeśli sock = -1, coś posżło nie tak, więc kończymy program z kodem 1
-	if (sock == -1) {
-		syserr("setsockopt");
-	}
+   if (sock == -1) {
+      syserr("setsockopt");
+   }
 
    // connect() = -1 ---> błąd
-	if (connect(sock, (struct sockaddr *)&addr, sizeof(struct sockaddr_in)) == -1) {
-		syserr("connect");
-	}
+   if (connect(sock, (struct sockaddr *)&addr, sizeof(struct sockaddr_in)) == -1) {
+      syserr("connect");
+   }
 
-	return sock;
+   return sock;
 }
 
 int main(int argc, char *argv[]){
-	int fd;
-	char buffer[BUFFER_SIZE];
+   int fd;
+   char buffer[BUFFER_SIZE];
 
    // liczba argumentów musi być równa 4 (włącznie z nazwą programu)
    if (argc != 4){
       fatal("improper number of arguments");
-	}
+   }
 
    char *connectionAddress = argv[1];   // pierwszy argument
    char *cookiesFile = argv[2];          // drugi argument
