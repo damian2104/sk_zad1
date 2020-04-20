@@ -11,7 +11,7 @@
 #include <stdbool.h>
 #include "err.h"
 
-#define BUFFER_SIZE 100000
+#define BUFFER_SIZE 1000000
 
 /* Funkcja dzieli pierwszy argument na adres + port */
 void decomposeFirstArgument(char *connectionAddress, char **port) {
@@ -132,11 +132,106 @@ void serveCodeNot200(char *buffer) {
    return;
 }
 
+int search(char* pat, char* txt, int startingPosition) {
+   int M = strlen(pat);
+   int N = strlen(txt);
+
+   for (int i = startingPosition; i <= N - M; i++) {
+      int j;
+
+      for (j = 0; j < M; j++) {
+         if (txt[i + j] != pat[j]) {
+            break;
+         }
+         if (j == (M-1)) {
+            return (i+j+1);   // pierwszy indeks po wystąpieniu wzorca
+         }
+      }
+   }
+   return -1;
+}
+
+bool isEncodingChunked(char *buffer, int message_length) {
+   int index = search("Transfer-Encoding: chunked", buffer, 0);
+   if (index == -1) {
+      return false;
+   }
+   return true;
+}
+
+int findContentLenght(char *buffer) {
+   int index = search("Content-Length: ", buffer, 0);
+   if (index == -1) {
+      return -1;
+   }
+   char ch_length[BUFFER_SIZE/10000];
+   char c = buffer[index];
+   int i = 0;
+   while (c != '\r') {
+      ch_length[i] = c;
+      i++;
+      index++;
+      c = buffer[index];
+   }
+   ch_length[i] = '\0';
+
+   return atoi(ch_length);
+}
+
+void getCookiesFromResponse(char* buffer, char* cookies) {
+   char cookie[BUFFER_SIZE/1000];
+   bzero(cookie, BUFFER_SIZE/1000);
+   int index = search("Set-Cookie: ", buffer, 0);
+   int i = 0;
+   char c;
+   while (index != -1) {
+      c = buffer[index];
+      while (c != ';' && c != '\r') {
+         //printf("znak: %c\n", c);
+         cookie[i] = c;
+         i++;
+         index++;
+         c = buffer[index];
+      }
+      cookie[i] = '\0';
+      printf(cookie);
+      strcat(cookies, cookie);
+      strcat(cookies, "\n\0");
+      bzero(cookie, BUFFER_SIZE/1000);
+      i = 0;
+      index = search("Set-Cookie: ", buffer, index);
+   }
+   printf(cookies);
+   return;
+
+}
+
+bool isChunkLength(char* buffer, int *index, char *chunk_length) {
+   // TO DO
+}
+
+int addChunks(buffer) {
+   int sumOfChunks = 0;
+   char chunk_length[BUFFER_SIZE/1000];
+   bzero(chunk_length, BUFFER_SIZE/1000);
+   int N = strlen(buffer);
+   int index = search("\r\n", buffer, 0);
+   while (index != -1 && index < N) {
+      if (isChunkLength(buffer, &index, chunk_length)) {
+         // w chunk_length jest długość kolejnego chunka
+      }
+      bzero(chunk_length, BUFFER_SIZE/1000);
+      index = search("\r\n", buffer, index);
+   }
+
+   return sumOfChunks;
+}
+
 /* Funkcja tworzy gniazdo (socket) i nawiązuje połączenie z serwerem */
 int socket_connect(char *host, in_port_t port){
-	struct hostent *hp;
-	struct sockaddr_in addr;
-	int on = 1, sock;
+   struct hostent *hp;
+   struct sockaddr_in addr;
+   int on = 1, sock;
 
    // znajdujemy hosta po nazwie
    if ((hp = gethostbyname(host)) == NULL) {
@@ -188,9 +283,14 @@ int main(int argc, char *argv[]){
    if (write(fd, message, message_length) != message_length) {
       syserr("write");
    }
+   sleep(1);
    bzero(buffer, BUFFER_SIZE);
    int numberOfReads = 0;
    int lengthOfResource = 0;
+   bool isChunked = false;
+   int contentLength = 0;
+   char cookies[BUFFER_SIZE] = "";
+   bzero(cookies, BUFFER_SIZE);
 
    // czytamy odpowiedź i drukujemy na stdout
    while (message_length = read(fd, buffer, BUFFER_SIZE - 1) != 0) {
@@ -205,8 +305,20 @@ int main(int argc, char *argv[]){
             serveCodeNot200(buffer);
             break;
          } else {
+            isChunked = isEncodingChunked(buffer, message_length);
+            if (!isChunked) {
+               contentLength = findContentLenght(buffer);
+               printf("content-length: %d\n", contentLength);
+            }
+            getCookiesFromResponse(buffer, cookies);
+            printf(buffer);
+            exit(0);
             // TO DO
          }
+      }
+      if (isChunked) {
+         // TO DO
+         contentLength += addChunks(buffer);
       }
       printf("%s", buffer);
       bzero(buffer, BUFFER_SIZE);
@@ -215,6 +327,6 @@ int main(int argc, char *argv[]){
    // kończymy połaczenie
    shutdown(fd, SHUT_RDWR);
    close(fd);
-   
+
    return 0;
 }
